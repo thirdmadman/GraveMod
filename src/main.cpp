@@ -63,9 +63,9 @@ void loop()
 
   u8g2.firstPage();
   do {
-    u8g2.setFont(u8g2_font_ncenB10_tr);
+    u8g2.setFont(u8g2_font_ncenB08_tr);
     u8g2.setCursor(5, 10);
-    u8g2.print("WE GOT ELSE");
+    u8g2.print("we got else");
   } while (u8g2.nextPage());
 
 }
