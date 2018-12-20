@@ -16,7 +16,6 @@ void setup()
 //</PWM>
 
 	//Serial.begin(9600); // Use fore debug?
-
   u8g2.begin();
 
 }
