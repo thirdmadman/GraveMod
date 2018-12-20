@@ -1,4 +1,12 @@
+#include <Arduino.h>
 #include <U8g2lib.h>
+
+#ifdef U8X8_HAVE_HW_SPI
+#include <SPI.h>
+#endif
+#ifdef U8X8_HAVE_HW_I2C
+#include <Wire.h>
+#endif
 
 #define buttonFire 3
 #define buttonUp 4
@@ -16,16 +24,9 @@
 #define version 0.1
 #define isDev true
 #define powerLimit 250
-#define unsafeMode
+#define unsafeMode true
 #define minCoilResistance 0.01
 #define maxCoilResistance 10
-
-#if ENABLED(unsafeMode)
-	#define minCoilResistance 0.0001
-	#define maxCoilResistance 1000
-	#define lowBattery 3.4
-	#define lowCriticalBattery 3.2
-#endif
 
 
 
@@ -34,18 +35,18 @@ void setup()
 {
 //<Interrupts>
 // that's making interrupts about once a second
-	OCR0A = 0xAF;
-	TIMSK0 |= _BV(OCIE0A);
+  OCR0A = 0xAF;
+  TIMSK0 |= _BV(OCIE0A);
 //</Interrupts>
 
 //<PWM>
 //that's making PWM 10 bit (1024) on 15625 Hz
-	TCCR1A = TCCR1A & 0xe0 | 3;
-	TCCR1B = TCCR1B & 0xe0 | 0x09;
+  TCCR1A = TCCR1A & 0xe0 | 3;
+  TCCR1B = TCCR1B & 0xe0 | 0x09;
 //</PWM>
-	if (isDev == true) {
-		Serial.begin(9600); // Use fore debug?
-	}
+  if (isDev == true) {
+    Serial.begin(9600); // Use fore debug?
+  }
   u8g2.begin();
 }
 
@@ -59,6 +60,13 @@ SIGNAL(TIMER0_COMPA_vect)
 //<Loop>
 void loop()
 {
+
+  u8g2.firstPage();
+  do {
+    u8g2.setFont(u8g2_font_ncenB10_tr);
+    u8g2.setCursor(5, 10);
+    u8g2.print("WE GOT ELSE");
+  } while (u8g2.nextPage());
 
 }
 //</Loop>
