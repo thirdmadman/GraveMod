@@ -58,6 +58,10 @@ void getSpalshScreen(void) {
   } while (u8g2.nextPage());
 }
 
+void drawBattery(float voltage) {
+
+}
+
 void drawMainFrame(void) {
   u8g2.firstPage();
   do {
