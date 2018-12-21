@@ -20,17 +20,38 @@
 #define overchargedBattery 4.35
 #define mosfetResistance 0.01
 #define voltagedividerR1 3
-#define authorName thirdmadman
+#define authorName "thirdmadman"
 #define version 0.1
 #define isDev true
 #define powerLimit 250
 #define unsafeMode true
 #define minCoilResistance 0.01
 #define maxCoilResistance 10
-
-
+#define spalshScreen true
 
 U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
+void getSpalshScreen(void) {
+  if (spalshScreen == true) {
+    u8g2.setFont(u8g2_font_ncenB10_te);
+    u8g2.setCursor(25,14);
+    u8g2.print("Grave mod");
+
+    u8g2.setFont(u8g2_font_ncenB08_tr);
+    u8g2.setCursor(44,28);
+    u8g2.print("made by");
+
+    u8g2.setFont(u8g2_font_ncenB10_tr);
+    u8g2.setCursor(14,42);
+    u8g2.print(authorName);
+
+    u8g2.setFont(u8g2_font_ncenB08_tr);
+    u8g2.setCursor(36,54);
+    u8g2.print("version");
+    u8g2.setCursor(80,54);
+    u8g2.print(version);
+  }
+}
+
 void setup()
 {
 //<Interrupts>
@@ -57,15 +78,15 @@ SIGNAL(TIMER0_COMPA_vect)
 }
 //</Interrup>
 
+
+
 //<Loop>
 void loop()
 {
 
   u8g2.firstPage();
   do {
-    u8g2.setFont(u8g2_font_ncenB08_tr);
-    u8g2.setCursor(5, 10);
-    u8g2.print("we got else");
+    getSpalshScreen();
   } while (u8g2.nextPage());
 
 }
