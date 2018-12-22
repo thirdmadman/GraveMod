@@ -141,11 +141,23 @@ void drawBattery(float voltage) {
 
 }
 
+void drawResitance(float resistance) {
+
+  u8g2.setFont(u8g2_font_6x12_t_symbols);
+  u8g2.drawGlyph(6, 13, 0x2126);
+  u8g2.setFont(u8g2_font_ncenB08_te);
+  u8g2.setCursor(18,13);
+  //float setResistance = resitace + mosfetResis;
+  //u8g2.print(setResistance);
+  u8g2.print(resistance);
+
+}
 void drawMainFrame(void) {
   u8g2.firstPage();
   do {
     u8g2.drawFrame(0,0,128,64);
     drawBattery(batteryVoltage);
+    drawResitance(0.02);
   } while (u8g2.nextPage());
 }
 
