@@ -598,5 +598,4 @@ void loop()
 			u8g2.print("WE GOT ELSE");
 		} while (u8g2.nextPage());
 	}
-	//delay(5000);
 }
