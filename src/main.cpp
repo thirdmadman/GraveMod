@@ -30,9 +30,13 @@
 #define maxCoilResistance 10
 #define spalshScreen false
 #define spalshScreenDuration 2000
+#define lowestResistance 0.015
+#define lowestResistanceUnsafe 0.0001
+#define highestResistance 15
 
-bool wasSplash = false;
-float batteryVoltage = 2;
+bool wasSplashScreen = false;
+float batteryVoltage = 2,
+coilResistance = 0;
 unsigned long startMillis = 0;
 U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 
@@ -143,13 +147,37 @@ void drawBattery(float voltage) {
 
 void drawResitance(float resistance) {
 
-  u8g2.setFont(u8g2_font_6x12_t_symbols);
-  u8g2.drawGlyph(6, 13, 0x2126);
-  u8g2.setFont(u8g2_font_ncenB08_te);
-  u8g2.setCursor(18,13);
   //float setResistance = resitace + mosfetResis;
   //u8g2.print(setResistance);
-  u8g2.print(resistance);
+
+  if (resistance > highestResistance) {
+    u8g2.setFont(u8g2_font_ncenB08_te);
+    u8g2.setCursor(8,13);
+    u8g2.print("coil none");
+  }
+  else if (resistance >= 0.01) {
+    u8g2.setFont(u8g2_font_6x12_t_symbols);
+    u8g2.drawGlyph(19, 13, 0x2126);
+    u8g2.setFont(u8g2_font_ncenB08_te);
+
+    u8g2.setCursor(27,13);
+    u8g2.print(resistance);
+  }
+  else if (resistance < 0.01 && resistance > lowestResistanceUnsafe) {
+    u8g2.setFont(u8g2_font_6x12_t_symbols);
+    u8g2.drawGlyph(19, 13, 0x2126);
+    u8g2.setFont(u8g2_font_ncenB08_te);
+    u8g2.setCursor(6,13);
+    u8g2.print("m");
+    u8g2.setCursor(27,13);
+    u8g2.print(resistance*1000);
+  }
+  else if (resistance < lowestResistanceUnsafe) {
+    u8g2.setFont(u8g2_font_ncenB08_te);
+    u8g2.setCursor(8,13);
+    u8g2.print("coil short");
+  }
+
 
 }
 void drawMainFrame(void) {
@@ -157,7 +185,7 @@ void drawMainFrame(void) {
   do {
     u8g2.drawFrame(0,0,128,64);
     drawBattery(batteryVoltage);
-    drawResitance(0.02);
+    drawResitance(coilResistance);
   } while (u8g2.nextPage());
 }
 
@@ -196,17 +224,24 @@ void loop()
 
   if (batteryVoltage>maxCharchedBattery+1){
     batteryVoltage = lowCriticalBattery;
+
   }
   else if (batteryVoltage<maxCharchedBattery+1) {
     batteryVoltage+=0.01;
   }
 
+  if (  coilResistance > highestResistance + 1) {
+      coilResistance = lowestResistance - 1;
+  }
+  else {
+      coilResistance += 0.1;
+  }
 
-  if ((wasSplash == false) && (spalshScreen == true) &&  (millis()-startMillis<=spalshScreenDuration)) {
+  if ((wasSplashScreen == false) && (spalshScreen == true) &&  (millis()-startMillis<=spalshScreenDuration)) {
     getSpalshScreen();
   }
-  else if ((wasSplash == false) && (spalshScreen == true) &&  (millis()-startMillis>spalshScreenDuration)) {
-    wasSplash = true;
+  else if ((wasSplashScreen == false) && (spalshScreen == true) &&  (millis()-startMillis>spalshScreenDuration)) {
+    wasSplashScreen = true;
   }
   else {
     drawMainFrame();
