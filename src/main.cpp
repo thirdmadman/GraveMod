@@ -1,12 +1,12 @@
 #include <Arduino.h>
 #include <U8g2lib.h>
 
-#ifdef U8X8_HAVE_HW_SPI
-#include <SPI.h>
-#endif
-#ifdef U8X8_HAVE_HW_I2C
-#include <Wire.h>
-#endif
+// #ifdef U8X8_HAVE_HW_SPI
+// #include <SPI.h>
+// #endif
+// #ifdef U8X8_HAVE_HW_I2C
+// #include <Wire.h>
+// #endif
 
 #define buttonFire 3
 #define buttonUp 4
@@ -33,12 +33,20 @@
 #define lowestResistance 0.015
 #define lowestResistanceUnsafe 0.0001
 #define highestResistance 15
+#define startPower 20
+#define maxPower 300
+
+
 
 bool wasSplashScreen = false;
 float batteryVoltage = 2,
 coilResistance = 0;
+//,power = startPower;
+
 unsigned long startMillis = 0;
-U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
+
+
+U8G2_SSD1306_128X64_NONAME_2_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 
 String getBatteryState(float voltage) {
   if (voltage>maxCharchedBattery) {
@@ -180,12 +188,21 @@ void drawResitance(float resistance) {
 
 
 }
+
+void drawPower(float power) {
+  u8g2.setFont(u8g2_font_ncenB18_te);
+  u8g2.setCursor(8,13);
+  u8g2.print(power);
+}
+
 void drawMainFrame(void) {
   u8g2.firstPage();
   do {
+    float gg =2;
     u8g2.drawFrame(0,0,128,64);
     drawBattery(batteryVoltage);
     drawResitance(coilResistance);
+    drawPower(gg);
   } while (u8g2.nextPage());
 }
 
@@ -236,6 +253,13 @@ void loop()
   else {
       coilResistance += 0.1;
   }
+
+  // if (  power > maxPower + 20) {
+  //     power = 0;
+  // }
+  // else {
+  //     power += 0.1;
+  // }
 
   if ((wasSplashScreen == false) && (spalshScreen == true) &&  (millis()-startMillis<=spalshScreenDuration)) {
     getSpalshScreen();
