@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <U8g2lib.h>
 unsigned long
 out,
@@ -260,6 +261,53 @@ SIGNAL(TIMER0_COMPA_vect)
 		}
 	}
 
+}
+
+
+void drawBatt(double voltsBatt) {
+	double voltsOnBatt = voltsBatt;
+	int voltsx;
+	int boxPoseX = 110;
+	u8g2.drawBox(boxPoseX + 3, 28, 6, 2);
+	u8g2.drawFrame(boxPoseX, 3, 12, 25);
+	if (voltsOnBatt >= 3.5 && voltsOnBatt <= 4.3)
+	{
+		voltsx = floor((voltsOnBatt - 3.5) / ((4.2 - 3.5) / 23.0));
+		if (voltsx > 23) {
+			voltsx = 23;
+		}
+		u8g2.drawBox(boxPoseX + 1, 4, 10, voltsx);
+		u8g2.setCursor(70, 20);
+		u8g2.print(100 - ((4.2 - voltsOnBatt) / 0.007));
+	}
+	else if (voltsOnBatt < 3.5)
+	{
+		u8g2.setFont(u8g_font_9x18B);
+		u8g2.setCursor(boxPoseX + 2, 20);
+		u8g2.print("!");
+		if (battrlownotify == true)
+		{
+			u8g2.setFont(u8g_font_6x10);
+			u8g2.setCursor(78, 14);
+			u8g2.print("LOW");
+			u8g2.setCursor(70, 28);
+			u8g2.print("BATTR");
+			if (millis() - lasttnotify >= 1000)
+			{
+				battrlownotify = false;
+				lasttnotify = millis();
+			}
+		}
+		else
+		{
+			if (millis() - lasttnotify >= 1000)
+			{
+				battrlownotify = true;
+				lasttnotify = millis();
+			}
+
+		}
+	}
 }
 
 void loop()
@@ -551,50 +599,4 @@ void loop()
 		} while (u8g2.nextPage());
 	}
 	//delay(5000);
-}
-
-void drawBatt(double voltsBatt) {
-	double voltsOnBatt = voltsBatt;
-	int voltsx;
-	int boxPoseX = 110;
-	u8g2.drawBox(boxPoseX + 3, 28, 6, 2);
-	u8g2.drawFrame(boxPoseX, 3, 12, 25);
-	if (voltsOnBatt >= 3.5 && voltsOnBatt <= 4.3)
-	{
-		voltsx = floor((voltsOnBatt - 3.5) / ((4.2 - 3.5) / 23.0));
-		if (voltsx > 23) {
-			voltsx = 23;
-		}
-		u8g2.drawBox(boxPoseX + 1, 4, 10, voltsx);
-		u8g2.setCursor(70, 20);
-		u8g2.print(100 - ((4.2 - voltsOnBatt) / 0.007));
-	}
-	else if (voltsOnBatt < 3.5)
-	{
-		u8g2.setFont(u8g_font_9x18B);
-		u8g2.setCursor(boxPoseX + 2, 20);
-		u8g2.print("!");
-		if (battrlownotify == true)
-		{
-			u8g2.setFont(u8g_font_6x10);
-			u8g2.setCursor(78, 14);
-			u8g2.print("LOW");
-			u8g2.setCursor(70, 28);
-			u8g2.print("BATTR");
-			if (millis() - lasttnotify >= 1000)
-			{
-				battrlownotify = false;
-				lasttnotify = millis();
-			}
-		}
-		else
-		{
-			if (millis() - lasttnotify >= 1000)
-			{
-				battrlownotify = true;
-				lasttnotify = millis();
-			}
-
-		}
-	}
 }
