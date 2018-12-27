@@ -30,6 +30,7 @@
 #define spalshScreen true
 #define spalshScreenDuration 2000
 
+float power = 0;
 bool wasSplash = false;
 unsigned long startMillis = 0;
 U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
@@ -48,7 +49,7 @@ void getSpalshScreen(void) {
 
     u8g2.setFont(u8g2_font_ncenB10_tr);
     u8g2.setCursor(14,42);
-    u8g2.print(authorName);
+    u8g2.print(power);
 
     u8g2.setFont(u8g2_font_ncenB08_tr);
     u8g2.setCursor(36,54);
