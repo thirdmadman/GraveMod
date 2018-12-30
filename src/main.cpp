@@ -69,7 +69,7 @@ class Button {
 
 Button bFire;
 Button bUp;
-Button bFire;
+Button bDown;
 
 class Battery {
   public:
