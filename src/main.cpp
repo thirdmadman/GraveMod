@@ -23,7 +23,7 @@ U8G2_SSD1306_128X64_NONAME_2_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 #define minCoilResistance 0.01
 #define maxCoilResistance 10
 #define spalshScreen true
-#define spalshScreenDuration 20000
+#define spalshScreenDuration 2000
 #define lowestResistance 0.015
 #define lowestResistanceUnsafe 0.0001
 #define highestResistance 15
@@ -39,139 +39,183 @@ power;
 
 unsigned long startMillis = 0;
 
+class Coil {
+  public:
+    float getCoilResistance() {
+      return 0.04;
+    }
+};
 
+class Button {
+  private:
+    bool pressed = false;
+    bool down = false;
+    unsigned long lastMillis = 0;
+  public:
+    bool getDownState() {
+      return down;
+    }
+    bool getPressedState() {
+      return pressed;
+    }
+    unsigned long getLastPressed() {
+      return lastMillis;
+    }
+    unsigned long getPressTime() {
+      return lastMillis - millis();
+    }
 
+};
 
-String getBatteryState(float voltage) {
-  if (voltage>maxCharchedBattery) {
-    //don't let user use this battery
-    return "BATTERY_OVERCHARGED";
-  }
-  else if ((voltage<=maxCharchedBattery) && (voltage>lowBattery)) {
-    return "BATTERY_NORMAL";
+Button bFire;
+Button bUp;
+Button bFire;
 
-  }
-  else if ((voltage<=lowBattery) && (voltage>lowCriticalBattery)) {
-    //notice - battery is low
-    return "BATTERY_LOW";
-  }
-  else if ((voltage<=lowCriticalBattery) && (voltage>(lowCriticalBattery-1))) {
-    //don't let user discharge battery more
-    return "BATTERY_LOWCRITICAL";
+class Battery {
+  public:
+  String getBatteryState(float voltage) {
+    if (voltage>maxCharchedBattery) {
+      //don't let user use this battery
+      return "BATTERY_OVERCHARGED";
+    }
+    else if ((voltage<=maxCharchedBattery) && (voltage>lowBattery)) {
+      return "BATTERY_NORMAL";
 
-  }
-  else if (voltage<=(lowCriticalBattery-1)) {
-    //check your battery - is it there?
-    return "BATTERY_NONE";
-  }
+    }
+    else if ((voltage<=lowBattery) && (voltage>lowCriticalBattery)) {
+      //notice - battery is low
+      return "BATTERY_LOW";
+    }
+    else if ((voltage<=lowCriticalBattery) && (voltage>(lowCriticalBattery-1))) {
+      //don't let user discharge battery more
+      return "BATTERY_LOWCRITICAL";
 
-  return "";
+    }
+    else if (voltage<=(lowCriticalBattery-1)) {
+      //check your battery - is it there?
+      return "BATTERY_NONE";
+    }
 
-}
+    return "";
 
-void getSpalshScreen(void) {
-
-    u8g2.drawStr(35,12, "Grave mod");
-    u8g2.drawStr(42,24, "made by");
-    u8g2.setFont(u8g2_font_10x20_tr);
-    u8g2.drawStr(10,42, authorName);
-    u8g2.setFont(u8g2_font_ncenB08_tr);
-    u8g2.drawStr(36,56, "version");
-    u8g2.drawStr(80,56, version);
-}
-
-void drawBattery(float voltage) {
-
-  String state = getBatteryState(voltage);
-
-  if (state=="BATTERY_OVERCHARGED") {
-    //don't let user use this battery
-    u8g2.drawFrame(96,4,25,10);
-    u8g2.drawBox(121, 6, 3, 6);
-    u8g2.drawStr(104,13,"!!!");
-  }
-  else if (state=="BATTERY_NORMAL") {
-    u8g2.drawFrame(96,4,25,10);
-    u8g2.drawBox(121, 6, 3, 6);
-    int batteryPix = floor((voltage - lowBattery) / ((maxCharchedBattery - lowBattery) / 25.0));
-		if (batteryPix > 25) {
-			batteryPix = 25;
-		}
-    u8g2.drawBox(97, 5, batteryPix, 8);
-  }
-  else if (state=="BATTERY_LOW") {
-    //notice - battery is low
-    u8g2.drawFrame(96,4,25,10);
-    u8g2.drawBox(121, 6, 3, 6);
-    u8g2.setCursor(72,13);
-    u8g2.print(voltage);
-    u8g2.drawStr(109,13,"!");
-  }
-  else if (state=="BATTERY_LOWCRITICAL") {
-    //don't let user discharge battery more
-    u8g2.drawFrame(96,4,25,10);
-    u8g2.drawBox(121, 6, 3, 6);
-    u8g2.drawLine(96,4,120,13);
-    u8g2.drawLine(96,13,120,4);
-  }
-  else if (state == "BATTERY_NONE") {
-    //check your battery - is it there?
-    u8g2.drawStr(108,13,"?");
-  }
-  u8g2.setCursor(72,13);
-  u8g2.print(voltage);
-}
-
-void drawResitance(float resistance) {
-
-  //float setResistance = resitace + mosfetResis;
-  //u8g2.print(setResistance);
-
-  if (resistance > highestResistance) {
-    u8g2.setCursor(8,13);
-    u8g2.print("coil none");
-  }
-  else if (resistance >= 0.01) {
-    u8g2.setFont(u8g2_font_6x12_t_symbols);
-    u8g2.drawGlyph(19, 13, 0x2126);
-    u8g2.setFont(u8g2_font_ncenB08_tr);
-
-    u8g2.setCursor(27,13);
-    u8g2.print(resistance);
-  }
-  else if (resistance < 0.01 && resistance > lowestResistanceUnsafe) {
-    u8g2.setFont(u8g2_font_6x12_t_symbols);
-    u8g2.drawGlyph(19, 13, 0x2126);
-    u8g2.setFont(u8g2_font_ncenB08_tr);
-    u8g2.setCursor(6,13);
-    u8g2.print("m");
-    u8g2.setCursor(27,13);
-    u8g2.print(resistance*1000);
-  }
-  else if (resistance < lowestResistanceUnsafe) {
-    u8g2.setCursor(8,13);
-    u8g2.print("coil short");
   }
 
+};
 
-}
+Battery Battery;
 
-void drawPower(float power) {
-  u8g2.setFont(u8g2_font_10x20_tr);
-  u8g2.setCursor(8,36);
-  u8g2.print(power);
-  u8g2.setFont(u8g2_font_ncenB08_tr);
-}
+class UI {
+  private:
+  public:
+    void drawSpalshScreen(void) {
 
-void drawMainFrame(void) {
+        u8g2.drawStr(35,12, "Grave mod");
+        u8g2.drawStr(42,24, "made by");
+        u8g2.setFont(u8g2_font_10x20_tr);
+        u8g2.drawStr(10,42, authorName);
+        u8g2.setFont(u8g2_font_ncenB08_tr);
+        u8g2.drawStr(36,56, "version");
+        u8g2.drawStr(80,56, version);
+    }
 
-    u8g2.drawFrame(0,0,128,64);
-    drawBattery(batteryVoltage);
-    drawResitance(coilResistance);
-    drawPower(power);
+    void drawBattery(float voltage) {
 
-}
+      String state = Battery.getBatteryState(voltage);
 
+      if (state=="BATTERY_OVERCHARGED") {
+        //don't let user use this battery
+        u8g2.drawFrame(96,4,25,10);
+        u8g2.drawBox(121, 6, 3, 6);
+        u8g2.drawStr(104,13,"!!!");
+      }
+      else if (state=="BATTERY_NORMAL") {
+        u8g2.drawFrame(96,4,25,10);
+        u8g2.drawBox(121, 6, 3, 6);
+        int batteryPix = floor((voltage - lowBattery) / ((maxCharchedBattery - lowBattery) / 25.0));
+    		if (batteryPix > 25) {
+    			batteryPix = 25;
+    		}
+        u8g2.drawBox(97, 5, batteryPix, 8);
+      }
+      else if (state=="BATTERY_LOW") {
+        //notice - battery is low
+        u8g2.drawFrame(96,4,25,10);
+        u8g2.drawBox(121, 6, 3, 6);
+        u8g2.setCursor(72,13);
+        u8g2.print(voltage);
+        u8g2.drawStr(109,13,"!");
+      }
+      else if (state=="BATTERY_LOWCRITICAL") {
+        //don't let user discharge battery more
+        u8g2.drawFrame(96,4,25,10);
+        u8g2.drawBox(121, 6, 3, 6);
+        u8g2.drawLine(96,4,120,13);
+        u8g2.drawLine(96,13,120,4);
+      }
+      else if (state == "BATTERY_NONE") {
+        //check your battery - is it there?
+        u8g2.drawStr(108,13,"?");
+      }
+      u8g2.setCursor(72,13);
+      u8g2.print(voltage);
+    }
+
+    void drawResitance(float resistance) {
+
+      //float setResistance = resitace + mosfetResis;
+      //u8g2.print(setResistance);
+
+      if (resistance > highestResistance) {
+        u8g2.setCursor(8,13);
+        u8g2.print("coil none");
+      }
+      else if (resistance >= 0.01) {
+        u8g2.setFont(u8g2_font_6x12_t_symbols);
+        u8g2.drawGlyph(19, 13, 0x2126);
+        u8g2.setFont(u8g2_font_ncenB08_tr);
+
+        u8g2.setCursor(27,13);
+        u8g2.print(resistance);
+      }
+      else if (resistance < 0.01 && resistance > lowestResistanceUnsafe) {
+        u8g2.setFont(u8g2_font_6x12_t_symbols);
+        u8g2.drawGlyph(19, 13, 0x2126);
+        u8g2.setFont(u8g2_font_ncenB08_tr);
+        u8g2.setCursor(6,13);
+        u8g2.print("m");
+        u8g2.setCursor(27,13);
+        u8g2.print(resistance*1000);
+      }
+      else if (resistance < lowestResistanceUnsafe) {
+        u8g2.setCursor(8,13);
+        u8g2.print("coil short");
+      }
+
+
+    }
+
+    void drawPower(float power) {
+      u8g2.setFont(u8g2_font_10x20_tr);
+      u8g2.setCursor(8,36);
+      u8g2.print(power);
+      u8g2.setFont(u8g2_font_ncenB08_tr);
+    }
+
+    void drawMainFrame(void) {
+
+        u8g2.drawFrame(0,0,128,64);
+        drawBattery(batteryVoltage);
+        drawResitance(coilResistance);
+        drawPower(power);
+
+    }
+};
+
+UI Ui;
+
+class Mod {
+  public:
+};
 
 void setup(){
 
@@ -230,13 +274,13 @@ void loop(){
   }
 
   if ((wasSplashScreen == false) && (spalshScreen == true) &&  (millis()-startMillis<=spalshScreenDuration)) {
-    getSpalshScreen();
+    Ui.drawSpalshScreen();
   }
   else if ((wasSplashScreen == false) && (spalshScreen == true) &&  (millis()-startMillis>spalshScreenDuration)) {
     wasSplashScreen = true;
   }
   else {
-    drawMainFrame();
+    Ui.drawMainFrame();
   }
 
 } while (u8g2.nextPage());
