@@ -30,6 +30,7 @@ U8G2_SSD1306_128X64_NONAME_2_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 #define startPower 20
 #define maxPower 300
 #define powerSaveTimeDef 20000
+#define buttonClickTime 200
 
 
 
@@ -68,7 +69,7 @@ public:
   }
   void setFire(bool state) {
     fire = state;
-    if (fire == true) {
+    if (fire) {
       digitalWrite(fireMosfets, HIGH);
     }
     else {
@@ -79,7 +80,7 @@ public:
     return fire;
   }
   void stateCorrection() {
-    if (getFireState()) {
+    if (fire) {
       digitalWrite(fireMosfets, HIGH);
     }
     else {
@@ -98,6 +99,7 @@ private:
   bool down = false;
   unsigned long rearMillis = 0;
   unsigned long frontMillis = 0;
+  bool clicked = false;
 public:
   Button(int pin) {
     pinNumber = pin;
@@ -130,8 +132,18 @@ public:
         down = false;
         rearMillis = millis();
         graveMod.lastActive = millis();
+        if (getPressTime() <= buttonClickTime) {
+          clicked = true;
+        }
       }
     }
+  }
+  bool buttonClicked () {
+    if (clicked) {
+      clicked = false;
+      return true;
+    }
+    else return false;
   }
 
 };
@@ -332,8 +344,9 @@ void setup(){
   TCCR1A = TCCR1A & 0xe0 | 3;
   TCCR1B = TCCR1B & 0xe0 | 0x09;
   //</PWM>
-  if (isDev == true) {
+  if (isDev == true && Serial.available() > 0) {
     Serial.begin(9600); // Use fore debug?
+
   }
   u8g2.begin();
   graveMod.startMillis=millis();
@@ -362,21 +375,19 @@ void loop(){
         u8g2.drawStr(30, 54, "1");
         coil.setFire(true);
       }
-      else {
-        coil.setFire(false);
-      }
-
     }
-    else if (bUp.getDownState() == true && bUp.getPressTime()>=100) {
-        graveMod.setPower(graveMod.getPower()+0.01);
+    else if (bFire.getDownState() == false) {
+      coil.setFire(false);
     }
-    else if (bDown.getDownState() == true && bDown.getPressTime()>=100) {
-        graveMod.setPower(graveMod.getPower()-0.01);
+    else if ((bUp.buttonClicked()) || (bUp.getPressTime()>=1000 && bUp.getDownState() == true)) {
+        graveMod.setPower(graveMod.getPower()+0.05);
+    }
+    else if ((bDown.buttonClicked()) || (bDown.getPressTime()>=1000 && bDown.getDownState() == true)) {
+        graveMod.setPower(graveMod.getPower()-0.05);
     }
 
     if (batteryVoltage>maxCharchedBattery+1){
       batteryVoltage = lowCriticalBattery;
-
     }
     else if (batteryVoltage<maxCharchedBattery+1) {
       batteryVoltage+=0.01;
