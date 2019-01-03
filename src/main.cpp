@@ -271,19 +271,19 @@ public:
     }
     else if (resistance >= 0.01) {
       u8g2.setFont(u8g2_font_6x12_t_symbols);
-      u8g2.drawGlyph(19, 13, 0x2126);
+      u8g2.drawGlyph(34, 13, 0x2126);
       u8g2.setFont(u8g2_font_ncenB08_tr);
 
-      u8g2.setCursor(27,13);
+      u8g2.setCursor(4,13);
       u8g2.print(resistance);
     }
     else if (resistance < 0.01 && resistance > lowestResistanceUnsafe) {
       u8g2.setFont(u8g2_font_6x12_t_symbols);
-      u8g2.drawGlyph(19, 13, 0x2126);
+      u8g2.drawGlyph(40, 13, 0x2126);
       u8g2.setFont(u8g2_font_ncenB08_tr);
-      u8g2.setCursor(6,13);
+      u8g2.setCursor(34,13);
       u8g2.print("m");
-      u8g2.setCursor(27,13);
+      u8g2.setCursor(4,13);
       u8g2.print(resistance*1000);
     }
     else if (resistance < lowestResistanceUnsafe) {
@@ -294,10 +294,18 @@ public:
 
   }
 
-  void drawPower(float power) {
+  // void drawPower(float power) {
+  //   u8g2.setFont(u8g2_font_10x20_tr);
+  //   u8g2.setCursor(4,36);
+  //   u8g2.print(power);
+  //   u8g2.setFont(u8g2_font_ncenB08_tr);
+  // }
+
+  void drawPower(void) {
     u8g2.setFont(u8g2_font_10x20_tr);
-    u8g2.setCursor(8,36);
-    u8g2.print(power);
+    u8g2.setCursor(4,36);
+    u8g2.print(graveMod.getPower());
+    u8g2.drawStr(70,36,"W");
     u8g2.setFont(u8g2_font_ncenB08_tr);
   }
 
@@ -305,7 +313,7 @@ public:
     u8g2.drawFrame(0,0,128,64);
     drawBattery(batteryVoltage);
     drawResitance(coilResistance);
-    drawPower(graveMod.getPower());
+    drawPower();
   }
 
   void drawMainFrame(void) {
@@ -379,11 +387,12 @@ void loop(){
     else if (bFire.getDownState() == false) {
       coil.setFire(false);
     }
-    else if ((bUp.buttonClicked()) || (bUp.getPressTime()>=1000 && bUp.getDownState() == true)) {
-        graveMod.setPower(graveMod.getPower()+0.05);
+
+    if ((bUp.buttonClicked()) || (bUp.getPressTime()>=1000 && bUp.getDownState() == true)) {
+        graveMod.setPower(graveMod.getPower()+0.5);
     }
     else if ((bDown.buttonClicked()) || (bDown.getPressTime()>=1000 && bDown.getDownState() == true)) {
-        graveMod.setPower(graveMod.getPower()-0.05);
+        graveMod.setPower(graveMod.getPower()-0.5);
     }
 
     if (batteryVoltage>maxCharchedBattery+1){
