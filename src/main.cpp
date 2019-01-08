@@ -20,7 +20,7 @@ U8G2_SSD1306_128X64_NONAME_2_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 #define isDev true
 #define powerLimit 250
 #define unsafeMode true
-#define minCoilResistance 0.01
+#define minCoilResistance 0.001
 #define maxCoilResistance 10
 #define spalshScreen true
 #define spalshScreenDuration 2000
@@ -36,7 +36,6 @@ U8G2_SSD1306_128X64_NONAME_2_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 
 bool wasSplashScreen = false;
 float batteryVoltage = 2,
-coilResistance = 0,
 powerSaveTime = powerSaveTimeDef;
 
 
@@ -63,9 +62,13 @@ Mod graveMod;
 class Coil {
 private:
   bool fire = false;
+  float coilResistance = lowestResistanceUnsafe;
 public:
+  void setCoilReistace(float resistance) {
+    coilResistance = resistance;
+  }
   float getCoilResistance() {
-    return 0.04;
+    return coilResistance;
   }
   void setFire(bool state) {
     fire = state;
@@ -100,6 +103,9 @@ private:
   unsigned long rearMillis = 0;
   unsigned long frontMillis = 0;
   bool clicked = false;
+  int clicksCount = 0;
+  int clicks = 0;
+  int forgetClicksTime = buttonClickTime * 1.5;
 public:
   Button(int pin) {
     pinNumber = pin;
@@ -124,6 +130,7 @@ public:
         down = true;
         frontMillis = millis();
         graveMod.lastActive = millis();
+        clicksCount++;
       }
     }
     else if (digitalRead(pinNumber)==LOW) {
@@ -136,6 +143,10 @@ public:
           clicked = true;
         }
       }
+      if (millis()-rearMillis>=forgetClicksTime) {
+        clicks = clicksCount;
+        clicksCount = 0;
+      }
     }
   }
   bool buttonClicked () {
@@ -144,6 +155,14 @@ public:
       return true;
     }
     else return false;
+  }
+  int getClicks(){
+    if (clicks > 0) {
+      int out = clicks;
+      clicks = 0;
+      return out;
+    }
+    return clicks;
   }
 
 };
@@ -188,7 +207,16 @@ Battery Battery;
 class UI {
 private:
   bool powerSave = false;
+  String drawMode = "MAIN_FRAME";
 public:
+
+  void setDrawMode(String option) {
+    drawMode = option;
+  }
+
+  String getDrawMode() {
+    return drawMode;
+  }
 
   void setPowerSave(bool state) {
     if (powerSave != state) {
@@ -269,7 +297,7 @@ public:
       u8g2.setCursor(8,13);
       u8g2.print("coil none");
     }
-    else if (resistance >= 0.01) {
+    else if (resistance >= 0.1) {
       u8g2.setFont(u8g2_font_6x12_t_symbols);
       u8g2.drawGlyph(34, 13, 0x2126);
       u8g2.setFont(u8g2_font_ncenB08_tr);
@@ -277,9 +305,9 @@ public:
       u8g2.setCursor(4,13);
       u8g2.print(resistance);
     }
-    else if (resistance < 0.01 && resistance > lowestResistanceUnsafe) {
+    else if (resistance < 0.1 && resistance > lowestResistanceUnsafe) {
       u8g2.setFont(u8g2_font_6x12_t_symbols);
-      u8g2.drawGlyph(40, 13, 0x2126);
+      u8g2.drawGlyph(46, 13, 0x2126);
       u8g2.setFont(u8g2_font_ncenB08_tr);
       u8g2.setCursor(34,13);
       u8g2.print("m");
@@ -294,13 +322,6 @@ public:
 
   }
 
-  // void drawPower(float power) {
-  //   u8g2.setFont(u8g2_font_10x20_tr);
-  //   u8g2.setCursor(4,36);
-  //   u8g2.print(power);
-  //   u8g2.setFont(u8g2_font_ncenB08_tr);
-  // }
-
   void drawPower(void) {
     u8g2.setFont(u8g2_font_10x20_tr);
     u8g2.setCursor(4,36);
@@ -312,22 +333,31 @@ public:
   void drawMainScreen() {
     u8g2.drawFrame(0,0,128,64);
     drawBattery(batteryVoltage);
-    drawResitance(coilResistance);
+    drawResitance(coil.getCoilResistance());
     drawPower();
+  }
+
+  void drawMenu() {
+    u8g2.drawFrame(0,0,128,64);
   }
 
   void drawMainFrame(void) {
     if (millis()-graveMod.lastActive < powerSaveTime) {
       setPowerSave(false);
+
       if ((wasSplashScreen == false) && (spalshScreen == true) &&  (millis()-graveMod.startMillis<=spalshScreenDuration)) {
         drawSpalshScreen();
       }
       else if ((wasSplashScreen == false) && (spalshScreen == true) &&  (millis()-graveMod.startMillis>spalshScreenDuration)) {
         wasSplashScreen = true;
       }
-      else {
+      else if (drawMode == "MENU") {
+        drawMenu();
+      }
+      else if (drawMode == "MAIN_FRAME") {
         drawMainScreen();
       }
+
     }
     else if (millis()-graveMod.lastActive >= powerSaveTime) {
       setPowerSave(true);
@@ -368,6 +398,9 @@ SIGNAL(TIMER0_COMPA_vect){
   coil.stateCorrection();
   bUp.readState();
   bDown.readState();
+  if (bFire.getClicks() >=3) {
+    Ui.setDrawMode("MENU");
+  }
 }
 //</Interrup>
 
@@ -382,6 +415,7 @@ void loop(){
       if ( bFire.getPressTime() >= 150) {
         u8g2.drawStr(30, 54, "1");
         coil.setFire(true);
+        Ui.setDrawMode("MAIN_FRAME");
       }
     }
     else if (bFire.getDownState() == false) {
@@ -402,13 +436,12 @@ void loop(){
       batteryVoltage+=0.01;
     }
 
-    if (  coilResistance > highestResistance + 1) {
-      coilResistance = lowestResistance - 1;
+    if (coil.getCoilResistance() > highestResistance + 1) {
+      coil.setCoilReistace(lowestResistanceUnsafe - 1);
     }
     else {
-      coilResistance += 0.1;
+      coil.setCoilReistace(coil.getCoilResistance()+0.001);
     }
-
 
     Ui.drawMainFrame();
   } while (u8g2.nextPage());
