@@ -59,6 +59,123 @@ public:
 };
 Mod graveMod;
 
+class IO {
+public:
+  float *readArrayFromPin(int pinNumber, int arryLenth) {
+    float read[arryLenth];
+    for (int i = 0; i < arryLenth - 1; i++) {
+      read[i] = analogRead(pinNumber);
+    }
+    return read;
+  }
+  float *sortFloatArry(float arry[]) {
+    int arrySize = sizeof(arry)/sizeof(arry[0]);
+    float *sortedArry = arry;
+    for (int i = 0; i < arrySize - 1; i++) {
+      for (int j = 0; j < arrySize - i - 1; j++) {
+        if (sortedArry[j] > sortedArry[j + 1]) {
+          float temp = sortedArry[j];
+          sortedArry[j] = sortedArry[j + 1];
+          sortedArry[j + 1] = temp;
+        }
+      }
+    }
+    return sortedArry;
+  }
+
+  float countAverageFromArray(float arry[]) {
+    float outFloat;
+    int arrySize = sizeof(arry)/sizeof(arry[0]);
+    for (int i = (((arrySize/2)-2)-1); i < (((arrySize/2)+2)-1); i++) {
+      outFloat += arry[i];
+    }
+    outFloat /= 4;
+    return outFloat;
+  }
+
+  float readFromPin(int pinNumber, int arryLenth) {
+    float read[arryLenth];
+    for (int i = 0; i < arryLenth - 1; i++) {
+      read[i] = analogRead(pinNumber);
+    }
+
+    for (int i = 0; i < arryLenth - 1; i++) {
+      for (int j = 0; j < arryLenth - i - 1; j++) {
+        if (read[j] > read[j + 1]) {
+          float temp = read[j];
+          read[j] = read[j + 1];
+          read[j + 1] = temp;
+        }
+      }
+    }
+
+    float outFloat;
+    for (int i = (((arryLenth/2)-2)-1); i < (((arryLenth/2)+2)-1); i++) {
+      outFloat += read[i];
+    }
+    outFloat /= 4;
+    return outFloat;
+  }
+};
+
+IO io;
+
+
+class Battery {
+
+private:
+  float voltage = 0;
+public:
+
+  String getBatteryState(float volts) {
+
+    if (voltage>maxCharchedBattery) {
+      //don't let user use this battery
+      return "BATTERY_OVERCHARGED";
+    }
+    else if ((voltage<=maxCharchedBattery) && (voltage>lowBattery)) {
+      return "BATTERY_NORMAL";
+
+    }
+    else if ((voltage<=lowBattery) && (voltage>lowCriticalBattery)) {
+      //notice - battery is low
+      return "BATTERY_LOW";
+    }
+    else if ((voltage<=lowCriticalBattery) && (voltage>(lowCriticalBattery-1))) {
+      //don't let user discharge battery more
+      return "BATTERY_LOWCRITICAL";
+
+    }
+    else if (voltage<=(lowCriticalBattery-1)) {
+      //check your battery - is it there?
+      return "BATTERY_NONE";
+    }
+
+    return "";
+
+  }
+
+  float readBatteryVoltagePrec() {
+    //float *voltagePrec = io.readArrayFromPin(measureBattery, 50);
+    //voltage = (io.countAverageFromArray(voltagePrec)) * (VCC / 1023.0);
+    voltage = io.readFromPin(measureBattery, 50) * (VCC / 1023.0);
+    return voltage;
+  }
+
+  float readBatteryVoltage() {
+    //float *voltageUsual = io.readArrayFromPin(measureBattery, 10);
+    //voltage = (io.countAverageFromArray(voltageUsual)) * (VCC / 1023.0);
+    voltage = io.readFromPin(measureBattery, 10) * (VCC / 1023.0);
+    return voltage;
+  }
+
+  float getBatteryVoltage() {
+    return voltage;
+  }
+
+};
+
+Battery Battery;
 
 class Coil {
 private:
@@ -72,6 +189,7 @@ public:
   float getCoilResistance() {
 
     return coilResistance;
+
   }
   void setFire(bool state) {
     fire = state;
@@ -92,7 +210,20 @@ public:
     else {
       digitalWrite(fireMosfets, LOW);
     }
+  }
 
+  float readResitance() {
+    //fucking matherfucking safety first!
+    if (getFireState() == false) {
+      digitalWrite(measureMosfet, HIGH);
+      delay(10); // let it wait until transition states gone
+      float resReadFloat =  io.readFromPin(measureVoltagedivider,50) * (VCC / 1023.0);
+      float precBatteryValtage = Battery.readBatteryVoltagePrec();
+      digitalWrite(measureMosfet, LOW);
+      //delay(10);
+      coilResistance = (voltagedividerR1*(precBatteryValtage - resReadFloat))/resReadFloat;
+    }
+    return coilResistance;
   }
 };
 
@@ -175,83 +306,7 @@ Button bFire(buttonFire);
 Button bUp(buttonUp);
 Button bDown(buttonDown);
 
-class Battery {
-private:
-  float voltage = 0;
-public:
 
-  String getBatteryState(float volts) {
-    if (voltage>maxCharchedBattery) {
-      //don't let user use this battery
-      return "BATTERY_OVERCHARGED";
-    }
-    else if ((voltage<=maxCharchedBattery) && (voltage>lowBattery)) {
-      return "BATTERY_NORMAL";
-
-    }
-    else if ((voltage<=lowBattery) && (voltage>lowCriticalBattery)) {
-      //notice - battery is low
-      return "BATTERY_LOW";
-    }
-    else if ((voltage<=lowCriticalBattery) && (voltage>(lowCriticalBattery-1))) {
-      //don't let user discharge battery more
-      return "BATTERY_LOWCRITICAL";
-
-    }
-    else if (voltage<=(lowCriticalBattery-1)) {
-      //check your battery - is it there?
-      return "BATTERY_NONE";
-    }
-
-    return "";
-
-  }
-
-  void readBatteryVoltagePrec() {
-    int size = 50;
-    float voltageArray[size - 1];
-    float temp;
-    for (int i = 0; i < size - 1; i++) {
-      voltageArray[i] = analogRead(measureBattery);
-    }
-    for (int i = 0; i < size - 1; i++) {
-      for (int j = 0; j < size - i - 1; j++) {
-        if (voltageArray[j] > voltageArray[j + 1]) {
-          temp = voltageArray[j];
-          voltageArray[j] = voltageArray[j + 1];
-          voltageArray[j + 1] = temp;
-        }
-      }
-    }
-    voltage = (((voltageArray[23] + voltageArray[24] + voltageArray[25] + voltageArray[26])/4) * (VCC / 1023.0));
-  }
-
-  void readBatteryVoltage() {
-    int size = 10;
-    float voltageArray[size - 1];
-    float temp;
-    for (int i = 0; i < size - 1; i++) {
-      voltageArray[i] = analogRead(measureBattery);
-    }
-    for (int i = 0; i < size - 1; i++) {
-      for (int j = 0; j < size - i - 1; j++) {
-        if (voltageArray[j] > voltageArray[j + 1]) {
-          temp = voltageArray[j];
-          voltageArray[j] = voltageArray[j + 1];
-          voltageArray[j + 1] = temp;
-        }
-      }
-    }
-    voltage = ((voltageArray[3] + voltageArray[4] + voltageArray[5] + voltageArray[6])/4) * (VCC / 1023.0);
-  }
-
-  float getBatteryVoltage() {
-    return voltage;
-  }
-
-};
-
-Battery Battery;
 
 class UI {
 private:
@@ -351,7 +406,6 @@ public:
 
     //float setResistance = resitace + mosfetResis;
     //u8g2.print(setResistance);
-
     if (resistance > highestResistance) {
       u8g2.setCursor(8,13);
       u8g2.print("coil none");
@@ -429,7 +483,7 @@ UI Ui;
 
 
 
-void setup(){
+void setup() {
 
   //<Interrupts>
   // that's making interrupts about once a second
@@ -457,7 +511,7 @@ void setup(){
 }
 
 //<Interrup>
-SIGNAL(TIMER0_COMPA_vect){
+SIGNAL(TIMER0_COMPA_vect) {
   bFire.readState();
   coil.stateCorrection();
   bUp.readState();
@@ -468,7 +522,7 @@ SIGNAL(TIMER0_COMPA_vect){
 
 
 //<Loop>
-void loop(){
+void loop() {
 
   if (bFire.getDownState() == true) {
     if ( bFire.getPressTime() >= 150) {
@@ -491,6 +545,7 @@ void loop(){
       Battery.readBatteryVoltagePrec();
     } else {
       Battery.readBatteryVoltage();
+      coil.readResitance();
     }
   }
 
@@ -503,12 +558,12 @@ void loop(){
   }
 
 
-  if (coil.getCoilResistance() > highestResistance + 1) {
-    coil.setCoilReistace(lowestResistanceUnsafe - 1);
-  }
-  else {
-    coil.setCoilReistace(coil.getCoilResistance()+0.001);
-  }
+  // if (coil.getCoilResistance() > highestResistance + 1) {
+  //   coil.setCoilReistace(lowestResistanceUnsafe - 1);
+  // }
+  // else {
+  //   coil.setCoilReistace(coil.getCoilResistance()+0.001);
+  // }
 
   u8g2.firstPage();
   do {
