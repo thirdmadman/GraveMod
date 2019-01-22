@@ -14,7 +14,7 @@ U8G2_SSD1306_128X64_NONAME_2_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 #define overchargedBattery 4.35
 #define maxCharchedBattery 4.25
 #define mosfetResistance 0.01
-#define voltagedividerR1 3
+#define voltagedividerR1 100
 #define authorName "thirdmadman"
 #define version "0.1"
 #define isDev true
@@ -32,29 +32,70 @@ U8G2_SSD1306_128X64_NONAME_2_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 #define powerSaveTimeDef 20000
 #define buttonClickTime 200
 #define maxPWM 1023
-#define VCC 5.04
+#define VCC 5.028
 #define timeBeforeFreezeScreen 10000
+#define startPowerProc 50
 
 
+long readVcc() {
+  // Read 1.1V reference against AVcc
+  // set the reference to Vcc and the measurement to the internal 1.1V reference
+  #if defined(__AVR_ATmega32U4__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
+    ADMUX = _BV(REFS0) | _BV(MUX4) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
+  #elif defined (__AVR_ATtiny24__) || defined(__AVR_ATtiny44__) || defined(__AVR_ATtiny84__)
+    ADMUX = _BV(MUX5) | _BV(MUX0);
+  #elif defined (__AVR_ATtiny25__) || defined(__AVR_ATtiny45__) || defined(__AVR_ATtiny85__)
+    ADMUX = _BV(MUX3) | _BV(MUX2);
+  #else
+    ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
+  #endif
 
+  delay(2); // Wait for Vref to settle
+  ADCSRA |= _BV(ADSC); // Start conversion
+  while (bit_is_set(ADCSRA,ADSC)); // measuring
+
+  uint8_t low  = ADCL; // must read ADCL first - it then locks ADCH
+  uint8_t high = ADCH; // unlocks both
+
+  long result = (high<<8) | low;
+
+  result = 1125300L / result; // Calculate Vcc (in mV); 1125300 = 1.1*1023*1000
+  return result/1000; // Vcc in millivolts
+}
 
 float batteryVoltage = 2; //TODO: de after dev
 
 class Mod {
 private:
   float power = startPower;
+  float powerProc = startPowerProc;
+  int powerManagementMode = 0;
 public:
+  //float vcc = readVcc();
+  float vcc = VCC;
   unsigned long startMillis = 0;
   unsigned long lastActive = 0;
 
   void setPower(float setPower) {
-    if (setPower <= maxPower && setPower >=0) {
-      power = setPower;
+    if (powerManagementMode == 1) {
+      if (setPower <= maxPower && setPower >=0) {
+        power = setPower;
+      }
+    } else if (powerManagementMode == 0) {
+      if (setPower <= 100 && setPower >=0) {
+        power = setPower;
+      }
     }
-
   }
   float getPower() {
     return power;
+  }
+
+  void setPowerManagementMode(int modeN) {
+    powerManagementMode = modeN;
+  }
+  int getPowerManagementMode() {
+    return powerManagementMode;
   }
 };
 Mod graveMod;
@@ -157,15 +198,15 @@ public:
 
   float readBatteryVoltagePrec() {
     //float *voltagePrec = io.readArrayFromPin(measureBattery, 50);
-    //voltage = (io.countAverageFromArray(voltagePrec)) * (VCC / 1023.0);
-    voltage = io.readFromPin(measureBattery, 50) * (VCC / 1023.0);
+    //voltage = (io.countAverageFromArray(voltagePrec)) * (graveMod.vcc / 1023.0);
+    voltage = io.readFromPin(measureBattery, 50) * (graveMod.vcc / 1023.0);
     return voltage;
   }
 
   float readBatteryVoltage() {
     //float *voltageUsual = io.readArrayFromPin(measureBattery, 10);
-    //voltage = (io.countAverageFromArray(voltageUsual)) * (VCC / 1023.0);
-    voltage = io.readFromPin(measureBattery, 10) * (VCC / 1023.0);
+    //voltage = (io.countAverageFromArray(voltageUsual)) * (graveMod.vcc / 1023.0);
+    voltage = io.readFromPin(measureBattery, 10) * (graveMod.vcc / 1023.0);
     return voltage;
   }
 
@@ -181,7 +222,7 @@ class Coil {
 private:
   bool fire = false;
   float coilResistance = lowestResistanceUnsafe;
-  int PWM = maxPWM;
+  int PWM = maxPWM/2;
 public:
   void setCoilReistace(float resistance) {
     coilResistance = resistance;
@@ -194,7 +235,13 @@ public:
   void setFire(bool state) {
     fire = state;
     if (fire) {
-      analogWrite(fireMosfets, PWM);
+      if (graveMod.getPowerManagementMode() == 0){
+        int powerIn = floor(graveMod.getPower()*10.23);
+        PWM = powerIn;
+        analogWrite(fireMosfets, PWM);
+      } else if (graveMod.getPowerManagementMode() == 1) {
+
+      }
     }
     else {
       digitalWrite(fireMosfets, LOW);
@@ -205,7 +252,13 @@ public:
   }
   void stateCorrection() {
     if (fire) {
-      digitalWrite(fireMosfets, HIGH);
+      if (graveMod.getPowerManagementMode() == 0){
+        int powerIn = floor(graveMod.getPower()*10.23);
+        PWM = powerIn;
+        analogWrite(fireMosfets, PWM);
+      } else if (graveMod.getPowerManagementMode() == 1) {
+
+      }
     }
     else {
       digitalWrite(fireMosfets, LOW);
@@ -217,7 +270,7 @@ public:
     if (getFireState() == false) {
       digitalWrite(measureMosfet, HIGH);
       delay(10); // let it wait until transition states gone
-      float resReadFloat =  io.readFromPin(measureVoltagedivider,50) * (VCC / 1023.0);
+      float resReadFloat =  io.readFromPin(measureVoltagedivider,50) * (graveMod.vcc / 1023.0);
       float precBatteryValtage = Battery.readBatteryVoltagePrec();
       digitalWrite(measureMosfet, LOW);
       //delay(10);
@@ -306,7 +359,40 @@ Button bFire(buttonFire);
 Button bUp(buttonUp);
 Button bDown(buttonDown);
 
+class Menu {
+private:
+  String menuPositions[20];
+  int currentMenuSize = 0;
+  int currentMenuPosition = 0;
+public:
+  void addMenuPosition(String menuName) {
+    menuPositions[currentMenuSize] = menuName;
+    currentMenuSize++;
+  }
+  void nexMenuPosition() {
+    if (currentMenuPosition < currentMenuSize-1) {
+      currentMenuPosition++;
+    }
 
+  }
+  void prevMenuPosition() {
+    if (currentMenuPosition > 0) {
+      currentMenuPosition -=1;
+    }
+  }
+  void drawMenu() {
+    int printPoseY =12;
+    for (int i = 0; i < currentMenuSize; i++) {
+      u8g2.setCursor(5, printPoseY);
+      u8g2.print(menuPositions[i]);
+      //u8g2.drawStr(5, printPoseX, menuPositions[i]);
+      printPoseY += 12;
+    }
+    u8g2.drawFrame(3, (currentMenuPosition*12)+1, 120, 14);
+  }
+};
+
+Menu menu;
 
 class UI {
 private:
@@ -315,6 +401,14 @@ private:
   String drawMode = "MAIN_FRAME";
   float powerSaveTime = powerSaveTimeDef;
 public:
+
+  UI() {
+    menu.addMenuPosition("Fire mode");
+    menu.addMenuPosition("Max fire time");
+    menu.addMenuPosition("Full power");
+    menu.addMenuPosition("Screen save time");
+    menu.addMenuPosition("About mode");
+  }
 
   void setPowerSaveTime(float time) {
     powerSaveTime = time;
@@ -398,8 +492,11 @@ public:
       //check your battery - is it there?
       u8g2.drawStr(108,13,"?");
     }
-    u8g2.setCursor(72,13);
-    u8g2.print(voltage);
+    if (voltage>0 &&  voltage < overchargedBattery+1) {
+      u8g2.setCursor(72,13);
+      u8g2.print(voltage);
+    }
+
   }
 
   void drawResitance(float resistance) {
@@ -439,19 +536,28 @@ public:
     u8g2.setFont(u8g2_font_10x20_tr);
     u8g2.setCursor(4,36);
     u8g2.print(graveMod.getPower());
-    u8g2.drawStr(70,36,"W");
+    if (graveMod.getPowerManagementMode() == 0) {
+      u8g2.drawStr(70,36,"%");
+    } else if (graveMod.getPowerManagementMode() == 1) {
+      u8g2.drawStr(70,36,"W");
+    }
+
     u8g2.setFont(u8g2_font_ncenB08_tr);
   }
 
   void drawMainScreen() {
-    u8g2.drawFrame(0,0,128,64);
+    //u8g2.drawFrame(0,0,128,64);
     drawBattery(Battery.getBatteryVoltage());
     drawResitance(coil.getCoilResistance());
     drawPower();
+    u8g2.setCursor(100,50);
+    u8g2.print(graveMod.vcc);
   }
 
   void drawMenu() {
-    u8g2.drawFrame(0,0,128,64);
+    //u8g2.drawFrame(0,0,128,64);
+
+    menu.drawMenu();
   }
 
   void drawMainFrame(void) {
@@ -482,7 +588,6 @@ public:
 UI Ui;
 
 
-
 void setup() {
 
   //<Interrupts>
@@ -504,10 +609,15 @@ void setup() {
   if (isDev == true) {
     Serial.begin(9600); // Use fore debug?
   }
+  //graveMod.vcc = readVcc();
+  pinMode(measureMosfet, OUTPUT);
+  pinMode(fireMosfets, OUTPUT);
+  pinMode(buttonFire, INPUT);
+  pinMode(buttonUp, INPUT);
+  pinMode(buttonDown,INPUT);
   u8g2.begin();
-  graveMod.startMillis=millis();
   u8g2.setFont(u8g2_font_ncenB08_tr);
-
+  graveMod.startMillis=millis();
 }
 
 //<Interrup>
@@ -551,10 +661,19 @@ void loop() {
 
 
   if ((bUp.buttonClicked()) || (bUp.getPressTime()>=1000 && bUp.getDownState() == true)) {
-    graveMod.setPower(graveMod.getPower()+0.5);
+    if ((Ui.getDrawMode() != "MENU")) {
+      graveMod.setPower(graveMod.getPower()+0.5);
+    } else if (Ui.getDrawMode() == "MENU") {
+      menu.nexMenuPosition();
+    }
+    //graveMod.vcc = readVcc();
   }
   else if ((bDown.buttonClicked()) || (bDown.getPressTime()>=1000 && bDown.getDownState() == true)) {
-    graveMod.setPower(graveMod.getPower()-0.5);
+    if ((Ui.getDrawMode() != "MENU")) {
+      graveMod.setPower(graveMod.getPower()-0.5);
+    } else if (Ui.getDrawMode() == "MENU") {
+      menu.prevMenuPosition();
+    }
   }
 
 
