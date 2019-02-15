@@ -34,10 +34,12 @@ private:
   float power = startPower;
   float powerProc = startPowerProc;
   int powerManagementMode = 0;
+
 public:
   float vcc = VCC;
   unsigned long startMillis = 0;
   unsigned long lastActive = 0;
+  bool FUSE_ACTIVE = false;
 
   void setPower(float setPower) {
     if (powerManagementMode == 1) {
@@ -138,17 +140,30 @@ public:
   float readBatteryVoltagePrec() {
     voltage = io.readFromPin(measureBattery, 50) * (graveMod.vcc / 1023.0);
     //voltage = io.readFromPin(measureBattery, 50);
+    checkFuse(voltage);
     return voltage;
   }
 
   float readBatteryVoltage() {
     voltage = io.readFromPin(measureBattery, 10) * (graveMod.vcc / 1023.0);
     //voltage = io.readFromPin(measureBattery, 10);
+    checkFuse(voltage);
     return voltage;
   }
 
   float getBatteryVoltage() {
     return voltage;
+  }
+
+  void checkFuse(float volts) {
+
+    int test = getBatteryState(volts);
+    if (!unsafeMode) {
+      if (test <2 || test > 4 || test == 0) {
+        graveMod.FUSE_ACTIVE = true;
+        graveMod.setPower(0);
+      }
+    }
   }
 
 };
@@ -172,12 +187,14 @@ public:
   void setFire(bool state) {
     fire = state;
     if (fire) {
-      if (graveMod.getPowerManagementMode() == 0){
-        int powerIn = floor(graveMod.getPower()*10.23);
-        PWM = powerIn;
-        analogWrite(fireMosfets, PWM);
-      } else if (graveMod.getPowerManagementMode() == 1) {
+      if (graveMod.FUSE_ACTIVE == false) {
+        if (graveMod.getPowerManagementMode() == 0){
+          int powerIn = floor(graveMod.getPower()*10.23);
+          PWM = powerIn;
+          analogWrite(fireMosfets, PWM);
+        } else if (graveMod.getPowerManagementMode() == 1) {
 
+        }
       }
     }
     else {
@@ -326,8 +343,7 @@ public:
       printPoseY += 12;
     }
     u8g2.drawFrame(3, (currentMenuPosition*12)+1, 120, 14);
-    u8g2.setCursor(72,13);
-    u8g2.print(currentMenuSize);
+
 
   }
   void setSelectedPosition(bool setter) {
@@ -351,7 +367,7 @@ MenuList fireModeMenu;
 
 class Menu {
 private:
-  MenuList lists[2];
+  MenuList lists[2] ;
   int currentList = 0;
 public:
 
@@ -366,21 +382,25 @@ public:
     fireModeMenu.addListPosition("Power in Watts");
     lists[0] = mainMenu;
     lists[1] = fireModeMenu;
+
   }
+
   int getCurrentList() {
     return currentList;
   }
 
   void nexMenuPosition() {
     lists[currentList].nexListPosition();
-
   }
+
   void prevMenuPosition() {
     lists[currentList].prevListPosition();
   }
+
   void drawMenu() {
     if ((currentList == 0) && (lists[currentList].getSelectedPosition() == 0)) {
       currentList = 1;
+      lists[currentList].setSelectedPosition(false);
     }
     else if ((currentList == 1) && (lists[currentList].getSelectedPosition() == 0)) {
       lists[currentList].setSelectedPosition(false);
@@ -388,14 +408,21 @@ public:
       lists[currentList].setSelectedPosition(false);
     }
     lists[currentList].drawList();
-
   }
+
   void setSelectedPosition(bool setter) {
     lists[currentList].setSelectedPosition(setter);
+
   }
 
   int getSelectedPosition() {
     return lists[currentList].getSelectedPosition();
+  }
+
+  void exit() {
+    currentList = 0;
+    lists[0].setSelectedPosition(false);
+    lists[1].setSelectedPosition(false);
   }
 };
 
@@ -411,12 +438,8 @@ private:
   float powerSaveTime = powerSaveTimeDef;
 public:
 
-  UI() {
-
-  }
-
   void drawPowerModMenu() {
-
+    u8g2.drawStr(35,12, "Power Mod");
   }
 
   void drawMaxFireTimeFrame() {
@@ -581,6 +604,7 @@ public:
       else if (menu.getSelectedPosition() == 2) {
         if (graveMod.getPowerManagementMode() == 0){
           graveMod.setPower(100);
+          menu.setSelectedPosition(false);
         } else if (graveMod.getPowerManagementMode() == 1) {
           menu.setSelectedPosition(false);
         }
@@ -595,39 +619,56 @@ public:
           menu.drawMenu();
       }
     }
+    else if (menu.getCurrentList() == 1) {
+      menu.drawMenu();
+    }
 
 
   }
 
   void drawMainFrame(void) {
+    if (graveMod.FUSE_ACTIVE == false) {
+      if (millis()-graveMod.lastActive < powerSaveTime) {
+        setPowerSave(false);
 
-    if (millis()-graveMod.lastActive < powerSaveTime) {
-      setPowerSave(false);
+        if ((wasSplashScreen == false) && (spalshScreen == true) &&  (millis()-graveMod.startMillis<=spalshScreenDuration)) {
+          drawSpalshScreen();
+        }
+        else if ((wasSplashScreen == false) && (spalshScreen == true) &&  (millis()-graveMod.startMillis>spalshScreenDuration)) {
+          wasSplashScreen = true;
+        }
+        else if (drawMode == 2) {
+          drawMenu();
+        }
+        else if (drawMode == 1) {
+          drawMainScreen();
+        }
+        else {
+          u8g2.setCursor(35,13);
+          u8g2.print(drawMode);
+          u8g2.drawFrame(0,0,128,64);
+          u8g2.setCursor(72,13);
+          u8g2.print("Warning!");
+        }
 
-      if ((wasSplashScreen == false) && (spalshScreen == true) &&  (millis()-graveMod.startMillis<=spalshScreenDuration)) {
-        drawSpalshScreen();
       }
-      else if ((wasSplashScreen == false) && (spalshScreen == true) &&  (millis()-graveMod.startMillis>spalshScreenDuration)) {
-        wasSplashScreen = true;
+      else if (millis()-graveMod.lastActive >= powerSaveTime) {
+        setPowerSave(true);
       }
-      else if (drawMode == 2) {
-        drawMenu();
-      }
-      else if (drawMode == 1) {
-        drawMainScreen();
-      }
-      else {
-        u8g2.setCursor(35,13);
-        u8g2.print(drawMode);
-        u8g2.drawFrame(0,0,128,64);
-        u8g2.setCursor(72,13);
-        u8g2.print("Warning!");
-      }
-
     }
-    else if (millis()-graveMod.lastActive >= powerSaveTime) {
-      setPowerSave(true);
+    else {
+      drawFuseScreen();
     }
+  }
+
+  void drawFuseScreen() {
+    u8g2.drawStr(33,12, "Grave mod");
+    u8g2.setFont(u8g2_font_10x20_tr);
+    u8g2.drawFrame(16,18,94,26);
+    u8g2.drawStr(18,38, "!BLOCKED!");
+    u8g2.setFont(u8g2_font_ncenB08_tr);
+    u8g2.drawStr(10,56, "cosed by");
+    u8g2.drawStr(60,56, "unknown");
   }
 
 };
@@ -669,7 +710,6 @@ void setup() {
 //<Interrup>
 SIGNAL(TIMER0_COMPA_vect) {
   bFire.readState();
-  //coil.stateCorrection();
   bUp.readState();
   bDown.readState();
 }
@@ -679,18 +719,19 @@ SIGNAL(TIMER0_COMPA_vect) {
 
 //<Loop>
 void loop() {
-  if (bFire.getDownState() == true) {
-    if ( bFire.getPressTime() >= 150 && (Ui.getDrawMode() != 2)) {
-      coil.setFire(true);
-    } else if ((Ui.getDrawMode() == 2) && (bFire.getPressTime() >= 1000)) {
+  if (graveMod.FUSE_ACTIVE == false) {
+    if (bFire.getDownState() == true) {
+      if ( bFire.getPressTime() >= 150 && (Ui.getDrawMode() != 2)) {
+        coil.setFire(true);
+      } else if ((Ui.getDrawMode() == 2) && (bFire.getPressTime() >= 1000)) {
         Ui.setDrawMode(1);
-        menu.setSelectedPosition(false);
+        menu.exit();
+      }
+    }
+    else if (bFire.getDownState() == false) {
+      coil.setFire(false);
     }
   }
-  else if (bFire.getDownState() == false) {
-    coil.setFire(false);
-  }
-
 
   if (millis() - graveMod.lastActive < timeBeforeFreezeScreen) {
     if (coil.getFireState()) {
