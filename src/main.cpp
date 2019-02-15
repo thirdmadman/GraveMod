@@ -1,41 +1,7 @@
 #include <Arduino.h>
 #include <U8g2lib.h>
 U8G2_SSD1306_128X64_NONAME_2_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
-
-#define buttonFire 3
-#define buttonUp 4
-#define buttonDown 5
-#define fireMosfets 9
-#define measureMosfet 8
-#define measureBattery A0
-#define measureVoltagedivider A1
-#define lowBattery 3.7
-#define lowCriticalBattery 3.4
-#define overchargedBattery 4.35
-#define maxCharchedBattery 4.25
-#define mosfetResistance 0.01
-#define voltagedividerR1 100
-#define authorName "thirdmadman"
-#define version "0.1"
-#define isDev true
-#define powerLimit 250
-#define unsafeMode true
-#define minCoilResistance 0.001
-#define maxCoilResistance 10
-#define spalshScreen true
-#define spalshScreenDuration 2000
-#define lowestResistance 0.015
-#define lowestResistanceUnsafe 0.0001
-#define highestResistance 15
-#define startPower 20
-#define maxPower 300
-#define powerSaveTimeDef 20000
-#define buttonClickTime 200
-#define maxPWM 1023
-#define VCC 5.028
-#define timeBeforeFreezeScreen 10000
-#define startPowerProc 50
-
+#include "config.h"
 
 long readVcc() {
   // Read 1.1V reference against AVcc
@@ -63,15 +29,12 @@ long readVcc() {
   return result/1000; // Vcc in millivolts
 }
 
-float batteryVoltage = 2; //TODO: de after dev
-
 class Mod {
 private:
   float power = startPower;
   float powerProc = startPowerProc;
   int powerManagementMode = 0;
 public:
-  //float vcc = readVcc();
   float vcc = VCC;
   unsigned long startMillis = 0;
   unsigned long lastActive = 0;
@@ -87,6 +50,7 @@ public:
       }
     }
   }
+
   float getPower() {
     return power;
   }
@@ -94,6 +58,7 @@ public:
   void setPowerManagementMode(int modeN) {
     powerManagementMode = modeN;
   }
+
   int getPowerManagementMode() {
     return powerManagementMode;
   }
@@ -102,37 +67,6 @@ Mod graveMod;
 
 class IO {
 public:
-  float *readArrayFromPin(int pinNumber, int arryLenth) {
-    float read[arryLenth];
-    for (int i = 0; i < arryLenth - 1; i++) {
-      read[i] = analogRead(pinNumber);
-    }
-    return read;
-  }
-  float *sortFloatArry(float arry[]) {
-    int arrySize = sizeof(arry)/sizeof(arry[0]);
-    float *sortedArry = arry;
-    for (int i = 0; i < arrySize - 1; i++) {
-      for (int j = 0; j < arrySize - i - 1; j++) {
-        if (sortedArry[j] > sortedArry[j + 1]) {
-          float temp = sortedArry[j];
-          sortedArry[j] = sortedArry[j + 1];
-          sortedArry[j + 1] = temp;
-        }
-      }
-    }
-    return sortedArry;
-  }
-
-  float countAverageFromArray(float arry[]) {
-    float outFloat;
-    int arrySize = sizeof(arry)/sizeof(arry[0]);
-    for (int i = (((arrySize/2)-2)-1); i < (((arrySize/2)+2)-1); i++) {
-      outFloat += arry[i];
-    }
-    outFloat /= 4;
-    return outFloat;
-  }
 
   float readFromPin(int pinNumber, int arryLenth) {
     float read[arryLenth];
@@ -150,63 +84,66 @@ public:
       }
     }
 
-    float outFloat;
-    for (int i = (((arryLenth/2)-2)-1); i < (((arryLenth/2)+2)-1); i++) {
+    float outFloat = 0;
+    int spector = 6;
+    for (int i = (((arryLenth/2)-(spector/2))-1); i < (((arryLenth/2)+(spector/2))-1); i++) {
       outFloat += read[i];
     }
-    outFloat /= 4;
+    outFloat /= spector;
     return outFloat;
   }
+
 };
 
 IO io;
 
-
 class Battery {
-
 private:
   float voltage = 0;
+  IO io;
 public:
 
-  String getBatteryState(float volts) {
+  int getBatteryState(float volts) {
 
     if (voltage>maxCharchedBattery) {
       //don't let user use this battery
-      return "BATTERY_OVERCHARGED";
+      //return "BATTERY_OVERCHARGED";
+      return 1;
     }
     else if ((voltage<=maxCharchedBattery) && (voltage>lowBattery)) {
-      return "BATTERY_NORMAL";
-
+      //return "BATTERY_NORMAL";
+      return 2;
     }
     else if ((voltage<=lowBattery) && (voltage>lowCriticalBattery)) {
       //notice - battery is low
-      return "BATTERY_LOW";
+      //return "BATTERY_LOW";
+      return 3;
     }
     else if ((voltage<=lowCriticalBattery) && (voltage>(lowCriticalBattery-1))) {
       //don't let user discharge battery more
-      return "BATTERY_LOWCRITICAL";
+      //return "BATTERY_LOWCRITICAL";
+      return 4;
 
     }
     else if (voltage<=(lowCriticalBattery-1)) {
       //check your battery - is it there?
-      return "BATTERY_NONE";
+      //return "BATTERY_NONE";
+      return 5;
     }
 
-    return "";
+    return 0;
 
   }
 
   float readBatteryVoltagePrec() {
-    //float *voltagePrec = io.readArrayFromPin(measureBattery, 50);
-    //voltage = (io.countAverageFromArray(voltagePrec)) * (graveMod.vcc / 1023.0);
     voltage = io.readFromPin(measureBattery, 50) * (graveMod.vcc / 1023.0);
+    //voltage = io.readFromPin(measureBattery, 50);
     return voltage;
   }
 
   float readBatteryVoltage() {
-    //float *voltageUsual = io.readArrayFromPin(measureBattery, 10);
-    //voltage = (io.countAverageFromArray(voltageUsual)) * (graveMod.vcc / 1023.0);
     voltage = io.readFromPin(measureBattery, 10) * (graveMod.vcc / 1023.0);
+    //voltage = io.readFromPin(measureBattery, 10);
     return voltage;
   }
 
@@ -273,7 +210,6 @@ public:
       float resReadFloat =  io.readFromPin(measureVoltagedivider,50) * (graveMod.vcc / 1023.0);
       float precBatteryValtage = Battery.readBatteryVoltagePrec();
       digitalWrite(measureMosfet, LOW);
-      //delay(10);
       coilResistance = (voltagedividerR1*(precBatteryValtage - resReadFloat))/resReadFloat;
     }
     return coilResistance;
@@ -359,36 +295,107 @@ Button bFire(buttonFire);
 Button bUp(buttonUp);
 Button bDown(buttonDown);
 
-class Menu {
+class MenuList {
 private:
-  String menuPositions[20];
+  String menuPositions[6];
+  bool selectedPosition[6];
   int currentMenuSize = 0;
   int currentMenuPosition = 0;
 public:
-  void addMenuPosition(String menuName) {
+  void addListPosition(String menuName) {
     menuPositions[currentMenuSize] = menuName;
+    selectedPosition[currentMenuSize] = false;
     currentMenuSize++;
   }
-  void nexMenuPosition() {
+  void nexListPosition() {
     if (currentMenuPosition < currentMenuSize-1) {
       currentMenuPosition++;
     }
 
   }
-  void prevMenuPosition() {
+  void prevListPosition() {
     if (currentMenuPosition > 0) {
       currentMenuPosition -=1;
     }
   }
-  void drawMenu() {
+  void drawList() {
     int printPoseY =12;
     for (int i = 0; i < currentMenuSize; i++) {
       u8g2.setCursor(5, printPoseY);
       u8g2.print(menuPositions[i]);
-      //u8g2.drawStr(5, printPoseX, menuPositions[i]);
       printPoseY += 12;
     }
     u8g2.drawFrame(3, (currentMenuPosition*12)+1, 120, 14);
+    u8g2.setCursor(72,13);
+    u8g2.print(currentMenuSize);
+
+  }
+  void setSelectedPosition(bool setter) {
+    for (int i = 0; i < currentMenuSize; i++) {
+      selectedPosition[i] = false;
+    }
+    selectedPosition[currentMenuPosition] = setter;
+  }
+  int getSelectedPosition() {
+    for (int i = 0; i < currentMenuSize; i++) {
+    if (selectedPosition[i]==true){
+      return i;
+    }
+    }
+    return -1;
+  }
+};
+
+MenuList mainMenu;
+MenuList fireModeMenu;
+
+class Menu {
+private:
+  MenuList lists[2];
+  int currentList = 0;
+public:
+
+  Menu() {
+    mainMenu.addListPosition("Fire mode");
+    mainMenu.addListPosition("Max fire time");
+    mainMenu.addListPosition("Full power");
+    mainMenu.addListPosition("Screen save time");
+    mainMenu.addListPosition("About mod");
+    fireModeMenu.addListPosition("<-");
+    fireModeMenu.addListPosition("Power in %");
+    fireModeMenu.addListPosition("Power in Watts");
+    lists[0] = mainMenu;
+    lists[1] = fireModeMenu;
+  }
+  int getCurrentList() {
+    return currentList;
+  }
+
+  void nexMenuPosition() {
+    lists[currentList].nexListPosition();
+
+  }
+  void prevMenuPosition() {
+    lists[currentList].prevListPosition();
+  }
+  void drawMenu() {
+    if ((currentList == 0) && (lists[currentList].getSelectedPosition() == 0)) {
+      currentList = 1;
+    }
+    else if ((currentList == 1) && (lists[currentList].getSelectedPosition() == 0)) {
+      lists[currentList].setSelectedPosition(false);
+      currentList = 0;
+      lists[currentList].setSelectedPosition(false);
+    }
+    lists[currentList].drawList();
+
+  }
+  void setSelectedPosition(bool setter) {
+    lists[currentList].setSelectedPosition(setter);
+  }
+
+  int getSelectedPosition() {
+    return lists[currentList].getSelectedPosition();
   }
 };
 
@@ -398,16 +405,30 @@ class UI {
 private:
   bool wasSplashScreen = false;
   bool powerSave = false;
-  String drawMode = "MAIN_FRAME";
+  int drawMode = 1;
+  // 1 = MAIN_FRAME
+  // 2 = MENU
   float powerSaveTime = powerSaveTimeDef;
 public:
 
   UI() {
-    menu.addMenuPosition("Fire mode");
-    menu.addMenuPosition("Max fire time");
-    menu.addMenuPosition("Full power");
-    menu.addMenuPosition("Screen save time");
-    menu.addMenuPosition("About mode");
+
+  }
+
+  void drawPowerModMenu() {
+
+  }
+
+  void drawMaxFireTimeFrame() {
+    u8g2.drawStr(35,12, "Max fire time");
+  }
+
+  void drawScreenSaveTimeFrame() {
+    u8g2.drawStr(35,12, "Screen save time");
+  }
+
+  void drawAboutModFrame() {
+    u8g2.drawStr(35,12, "About mod");
   }
 
   void setPowerSaveTime(float time) {
@@ -418,11 +439,12 @@ public:
     return powerSaveTime;
   }
 
-  void setDrawMode(String option) {
+  void setDrawMode(int option) {
     drawMode = option;
+
   }
 
-  String getDrawMode() {
+  int getDrawMode() {
     return drawMode;
   }
 
@@ -456,15 +478,15 @@ public:
 
   void drawBattery(float voltage) {
 
-    String state = Battery.getBatteryState(voltage);
-
-    if (state=="BATTERY_OVERCHARGED") {
+    if (Battery.getBatteryState(voltage)==1) {
       //don't let user use this battery
       u8g2.drawFrame(96,4,25,10);
       u8g2.drawBox(121, 6, 3, 6);
       u8g2.drawStr(104,13,"!!!");
+      u8g2.setCursor(72,13);
+      u8g2.print(voltage);
     }
-    else if (state=="BATTERY_NORMAL") {
+    else if (Battery.getBatteryState(voltage)==2) {
       u8g2.drawFrame(96,4,25,10);
       u8g2.drawBox(121, 6, 3, 6);
       int batteryPix = floor((voltage - lowBattery) / ((maxCharchedBattery - lowBattery) / 25.0));
@@ -473,7 +495,7 @@ public:
       }
       u8g2.drawBox(97, 5, batteryPix, 8);
     }
-    else if (state=="BATTERY_LOW") {
+    else if (Battery.getBatteryState(voltage)==3) {
       //notice - battery is low
       u8g2.drawFrame(96,4,25,10);
       u8g2.drawBox(121, 6, 3, 6);
@@ -481,14 +503,14 @@ public:
       u8g2.print(voltage);
       u8g2.drawStr(109,13,"!");
     }
-    else if (state=="BATTERY_LOWCRITICAL") {
+    else if (Battery.getBatteryState(voltage)==4) {
       //don't let user discharge battery more
       u8g2.drawFrame(96,4,25,10);
       u8g2.drawBox(121, 6, 3, 6);
       u8g2.drawLine(96,4,120,13);
       u8g2.drawLine(96,13,120,4);
     }
-    else if (state == "BATTERY_NONE") {
+    else if (Battery.getBatteryState(voltage) == 5) {
       //check your battery - is it there?
       u8g2.drawStr(108,13,"?");
     }
@@ -546,21 +568,39 @@ public:
   }
 
   void drawMainScreen() {
-    //u8g2.drawFrame(0,0,128,64);
     drawBattery(Battery.getBatteryVoltage());
     drawResitance(coil.getCoilResistance());
     drawPower();
-    u8g2.setCursor(100,50);
-    u8g2.print(graveMod.vcc);
   }
 
   void drawMenu() {
-    //u8g2.drawFrame(0,0,128,64);
+    if (menu.getCurrentList() == 0) {
+      if (menu.getSelectedPosition() == 1) {
+        drawMaxFireTimeFrame();
+      }
+      else if (menu.getSelectedPosition() == 2) {
+        if (graveMod.getPowerManagementMode() == 0){
+          graveMod.setPower(100);
+        } else if (graveMod.getPowerManagementMode() == 1) {
+          menu.setSelectedPosition(false);
+        }
+      }
+      else if (menu.getSelectedPosition() == 3) {
+        drawScreenSaveTimeFrame();
+      }
+      else if (menu.getSelectedPosition() == 4) {
+        drawAboutModFrame();
+      }
+      else {
+          menu.drawMenu();
+      }
+    }
 
-    menu.drawMenu();
+
   }
 
   void drawMainFrame(void) {
+
     if (millis()-graveMod.lastActive < powerSaveTime) {
       setPowerSave(false);
 
@@ -570,11 +610,18 @@ public:
       else if ((wasSplashScreen == false) && (spalshScreen == true) &&  (millis()-graveMod.startMillis>spalshScreenDuration)) {
         wasSplashScreen = true;
       }
-      else if (drawMode == "MENU") {
+      else if (drawMode == 2) {
         drawMenu();
       }
-      else if (drawMode == "MAIN_FRAME") {
+      else if (drawMode == 1) {
         drawMainScreen();
+      }
+      else {
+        u8g2.setCursor(35,13);
+        u8g2.print(drawMode);
+        u8g2.drawFrame(0,0,128,64);
+        u8g2.setCursor(72,13);
+        u8g2.print("Warning!");
       }
 
     }
@@ -609,7 +656,6 @@ void setup() {
   if (isDev == true) {
     Serial.begin(9600); // Use fore debug?
   }
-  //graveMod.vcc = readVcc();
   pinMode(measureMosfet, OUTPUT);
   pinMode(fireMosfets, OUTPUT);
   pinMode(buttonFire, INPUT);
@@ -623,7 +669,7 @@ void setup() {
 //<Interrup>
 SIGNAL(TIMER0_COMPA_vect) {
   bFire.readState();
-  coil.stateCorrection();
+  //coil.stateCorrection();
   bUp.readState();
   bDown.readState();
 }
@@ -633,22 +679,18 @@ SIGNAL(TIMER0_COMPA_vect) {
 
 //<Loop>
 void loop() {
-
   if (bFire.getDownState() == true) {
-    if ( bFire.getPressTime() >= 150) {
+    if ( bFire.getPressTime() >= 150 && (Ui.getDrawMode() != 2)) {
       coil.setFire(true);
-      if ((Ui.getDrawMode() == "MENU") && (bFire.getPressTime() >= 1000)) {
-        Ui.setDrawMode("MAIN_FRAME");
-      }
+    } else if ((Ui.getDrawMode() == 2) && (bFire.getPressTime() >= 1000)) {
+        Ui.setDrawMode(1);
+        menu.setSelectedPosition(false);
     }
   }
   else if (bFire.getDownState() == false) {
     coil.setFire(false);
   }
 
-  if (bFire.getClicks() >=5) {
-    Ui.setDrawMode("MENU");
-  }
 
   if (millis() - graveMod.lastActive < timeBeforeFreezeScreen) {
     if (coil.getFireState()) {
@@ -661,28 +703,28 @@ void loop() {
 
 
   if ((bUp.buttonClicked()) || (bUp.getPressTime()>=1000 && bUp.getDownState() == true)) {
-    if ((Ui.getDrawMode() != "MENU")) {
+    if ((Ui.getDrawMode() != 2)) {
       graveMod.setPower(graveMod.getPower()+0.5);
-    } else if (Ui.getDrawMode() == "MENU") {
+    } else if (Ui.getDrawMode() == 2) {
       menu.nexMenuPosition();
     }
-    //graveMod.vcc = readVcc();
   }
   else if ((bDown.buttonClicked()) || (bDown.getPressTime()>=1000 && bDown.getDownState() == true)) {
-    if ((Ui.getDrawMode() != "MENU")) {
+    if ((Ui.getDrawMode() != 2)) {
       graveMod.setPower(graveMod.getPower()-0.5);
-    } else if (Ui.getDrawMode() == "MENU") {
+    } else if (Ui.getDrawMode() == 2) {
       menu.prevMenuPosition();
     }
   }
+  else if (bFire.buttonClicked()) {
+    if (Ui.getDrawMode() == 2) {
+      menu.setSelectedPosition(true);
+    }
+  }
 
-
-  // if (coil.getCoilResistance() > highestResistance + 1) {
-  //   coil.setCoilReistace(lowestResistanceUnsafe - 1);
-  // }
-  // else {
-  //   coil.setCoilReistace(coil.getCoilResistance()+0.001);
-  // }
+  if (bFire.getClicks() >=5) {
+    Ui.setDrawMode(2);
+  }
 
   u8g2.firstPage();
   do {
