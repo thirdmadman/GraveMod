@@ -12,7 +12,7 @@
   #define overchargedBattery 4.35 // Overcharged battery voltage, use device is highly unsafe
   #define maxCharchedBattery 4.25 // Maximum charged battery voltage, taken as 100% (full) of battery charge icon
   #define mosfetResistance 0.01 // Approximate resistance of fire mosfets
-  #define voltagedividerR1 100 // Highly precise resistance of R1 in voltage divider
+  #define voltagedividerR1 2.7 // Highly precise resistance of R1 in voltage divider
   #define authorName "thirdmadman" // Name of author
   #define version "0.2" // Version name in version control
   #define isDev true // This build is for development?
