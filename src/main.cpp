@@ -99,7 +99,6 @@ SIGNAL(TIMER0_COMPA_vect)
 void loop()
 {
 
-
   if ((wasSplash == false) && (spalshScreen == true) &&  (millis()-startMillis<=spalshScreenDuration)) {
     getSpalshScreen();
   }
@@ -109,7 +108,6 @@ void loop()
   else {
     drawMainFrame();
   }
-
 
 }
 //</Loop>
